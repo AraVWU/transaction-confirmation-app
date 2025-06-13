@@ -74,6 +74,9 @@ export default function TransactionForm() {
         page. Please complete this form after you have sent your payment. If you selected this payment option by
         accident, you may contact customer service to request cancellation of the order and then reorder with card.
       </Typography>
+      <Typography variant="body2" color="info.main" sx={{ mb: 2 }}>
+        <strong>Note:</strong> Please use the email address associated with your vapewholesaleusa.com account.
+      </Typography>
       <Typography variant="h5" gutterBottom>
         Submit Transaction
       </Typography>
