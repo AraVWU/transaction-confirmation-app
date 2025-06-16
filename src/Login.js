@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { login } from './api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Box, Button, TextField, Typography, Alert, Paper } from '@mui/material';
 
 export default function Login({ onLogin }) {
