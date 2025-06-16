@@ -1,4 +1,4 @@
-const API_URL = process.env.REACT_APP_API_URL || `${window.location.origin}/api`;
+const API_URL = '/api';
 
 // Generic API fetch helper
 export async function apiFetch(url, options = {}) {

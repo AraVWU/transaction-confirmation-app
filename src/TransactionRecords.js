@@ -23,7 +23,7 @@ import {
   Divider,
   Chip,
 } from '@mui/material';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { apiFetch } from './api'; // Add this import at the top
 
 export default function TransactionRecords() {

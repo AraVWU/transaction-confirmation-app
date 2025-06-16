@@ -11,7 +11,7 @@ import {
   TableCell,
   TableRow,
 } from '@mui/material';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import { apiFetch } from './api'; // <-- Import your helper
 
 export default function OrderDetail() {
