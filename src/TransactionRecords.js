@@ -24,14 +24,14 @@ import {
   Chip,
 } from '@mui/material';
 import { Link } from 'react-router';
-import { apiFetch } from './api'; // Add this import at the top
+import { apiFetch } from './api';
 
 export default function TransactionRecords() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState('');
   const [search, setSearch] = useState('');
-  const [tab, setTab] = useState(0); // 0: Unconfirmed, 1: All, 2: Refund Requests
+  const [tab, setTab] = useState(0);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
 
@@ -39,6 +39,8 @@ export default function TransactionRecords() {
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [refundId, setRefundId] = useState(null);
   const [refundMessage, setRefundMessage] = useState('');
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundError, setRefundError] = useState('');
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -81,15 +83,34 @@ export default function TransactionRecords() {
   // Refund handlers
   const handleRefundClick = (id) => {
     setRefundId(id);
+    const rec = records.find((r) => r._id === id);
+    setRefundAmount(rec ? rec.amount : '');
     setRefundDialogOpen(true);
   };
 
   const handleRefund = async () => {
+    const transaction = records.find((r) => r._id === refundId);
+    const maxAmount = transaction ? transaction.amount : 0;
+    const refundValue = parseFloat(refundAmount);
+
+    if (isNaN(refundValue) || refundValue <= 0) {
+      setRefundError('Refund amount must be greater than 0.');
+      return;
+    }
+    if (refundValue > maxAmount) {
+      setRefundError(`Refund amount cannot exceed $${maxAmount}.`);
+      return;
+    }
+
+    setRefundError('');
+
     await apiFetch(`/transactions/${refundId}/refund`, {
       method: 'PATCH',
-      body: JSON.stringify({ message: refundMessage }),
+      body: JSON.stringify({
+        refundAmount,
+        message: refundMessage,
+      }),
     });
-    // Fetch latest records from backend
     const res = await apiFetch('/transactions');
     const data = await res.json();
     setRecords(data);
@@ -97,6 +118,7 @@ export default function TransactionRecords() {
     setRefundDialogOpen(false);
     setRefundId(null);
     setRefundMessage('');
+    setRefundAmount('');
   };
 
   const handleRefundDialogClose = () => {
@@ -122,7 +144,24 @@ export default function TransactionRecords() {
     setDeleteId(null);
   };
 
-  // Filter records based on tab and search input
+  const handleExportRefunds = async () => {
+    try {
+      const res = await fetch('/api/transactions/export-refunds', {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to export refunds');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'refund_requests.txt';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to export refunds');
+    }
+  };
+
   const filteredRecords = records
     .filter((rec) => {
       if (tab === 0) return !rec.confirmed;
@@ -161,6 +200,11 @@ export default function TransactionRecords() {
           fullWidth
           sx={{ mb: 3 }}
         />
+        {tab === 2 && (
+          <Button variant="contained" color="primary" sx={{ mb: 2 }} onClick={handleExportRefunds}>
+            Export Refund Requests
+          </Button>
+        )}
         <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: 0 }}>
           <Table size="small" sx={{ minWidth: 900 }}>
             <TableHead sx={{ position: 'sticky', top: 0, bgcolor: '#f7f7fa', zIndex: 1 }}>
@@ -173,6 +217,7 @@ export default function TransactionRecords() {
                 {tab === 1 && <TableCell>Confirmed</TableCell>}
                 {tab === 1 && <TableCell>Refunded</TableCell>}
                 {tab === 2 && <TableCell>Comments</TableCell>}
+                {tab === 2 && <TableCell>Refund Amount</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -211,6 +256,15 @@ export default function TransactionRecords() {
                       )}
                     </TableCell>
                   )}
+                  {tab === 2 && (
+                    <TableCell>
+                      {rec.refundAmount !== undefined && rec.refundAmount !== null && rec.refundAmount !== '' ? (
+                        <span>${rec.refundAmount}</span>
+                      ) : (
+                        <span style={{ color: '#888' }}>N/A</span>
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell align="center">
                     <Stack direction="row" spacing={1} justifyContent="center">
                       {userRole === 'accounting' && !rec.confirmed && tab === 0 && (
@@ -229,7 +283,7 @@ export default function TransactionRecords() {
                       {tab === 1 && !rec.refunded && !rec.refundRequested && (
                         <Button
                           variant="contained"
-                          color="warning" // Changed from "error" to "warning"
+                          color="warning"
                           size="small"
                           onClick={() => handleRefundClick(rec._id)}
                         >
@@ -339,8 +393,17 @@ export default function TransactionRecords() {
             <strong>Order Number:</strong> {refundId && records.find((r) => r._id === refundId)?.orderNumber}
           </Typography>
           <Typography variant="body2" sx={{ mb: 1 }}>
-            <strong>Amount:</strong> ${refundId && records.find((r) => r._id === refundId)?.amount}
+            <strong>Original Amount:</strong> ${refundId && records.find((r) => r._id === refundId)?.amount}
           </Typography>
+          <TextField
+            label="Refund Amount"
+            value={refundAmount}
+            onChange={(e) => setRefundAmount(e.target.value)}
+            type="number"
+            fullWidth
+            required
+            sx={{ mt: 2 }}
+          />
           <TextField
             label="Reason for refund"
             value={refundMessage}
@@ -351,10 +414,20 @@ export default function TransactionRecords() {
             minRows={2}
             sx={{ mt: 2 }}
           />
+          {refundError && (
+            <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+              {refundError}
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleRefundDialogClose}>Cancel</Button>
-          <Button onClick={handleRefund} color="error" variant="contained" disabled={!refundMessage.trim()}>
+          <Button
+            onClick={handleRefund}
+            color="error"
+            variant="contained"
+            disabled={!refundMessage.trim() || !refundAmount}
+          >
             Request Refund
           </Button>
         </DialogActions>
