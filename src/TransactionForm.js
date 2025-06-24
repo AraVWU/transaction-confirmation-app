@@ -7,6 +7,7 @@ export default function TransactionForm() {
   const [amount, setAmount] = useState('');
   const [orderNumber, setOrderNumber] = useState('');
   const [transactionNumber, setTransactionNumber] = useState('');
+  const [transactionType, setTransactionType] = useState('');
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState({});
 
@@ -28,6 +29,10 @@ export default function TransactionForm() {
     if (!transactionNumber) {
       errs.transactionNumber = 'Transaction number is required. Incorrect value will result in unprocessed order.';
     }
+    // Transaction Type validation
+    if (!transactionType) {
+      errs.transactionType = 'Transaction type is required.';
+    }
     return errs;
   };
 
@@ -46,6 +51,7 @@ export default function TransactionForm() {
       amount,
       orderNumber,
       transactionNumber,
+      transactionType, // <-- add this
     });
 
     // Check for duplicate order number error
@@ -61,6 +67,7 @@ export default function TransactionForm() {
       setAmount('');
       setOrderNumber('');
       setTransactionNumber('');
+      setTransactionType(''); // <-- add this
       setErrors({});
     } else {
       setMessage(res.message || 'Submission failed.');
@@ -107,6 +114,22 @@ export default function TransactionForm() {
           error={!!errors.amount}
           helperText={errors.amount}
         />
+        <TextField
+          value={transactionType}
+          onChange={(e) => setTransactionType(e.target.value)}
+          fullWidth
+          margin="normal"
+          required
+          select
+          SelectProps={{ native: true }}
+          error={!!errors.transactionType}
+          helperText={errors.transactionType || 'Transaction type is required'}
+        >
+          <option value="">Select Transaction Type</option>
+          <option value="zelle">Zelle</option>
+          <option value="bank_deposit">ACH</option>
+          <option value="wire_transfer">Wire Transfer</option>
+        </TextField>
         {/* Order Number warning */}
         <Typography variant="body2" color="warning.main" sx={{ mt: 2 }}>
           Please double-check your Order Number. Incorrect value will result in unprocessed order.

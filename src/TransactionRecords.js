@@ -170,7 +170,7 @@ export default function TransactionRecords() {
       return true;
     })
     .filter((rec) =>
-      [rec.email, rec.orderNumber, rec.transactionNumber].some(
+      [rec.email, rec.orderNumber, rec.transactionNumber, rec.transactionType].some(
         (field) => field && field.toLowerCase().includes(search.toLowerCase())
       )
     );
@@ -194,7 +194,7 @@ export default function TransactionRecords() {
           <Tab label="Refund Request Transactions" />
         </Tabs>
         <TextField
-          label="Search by email, order number, or transaction number"
+          label="Search by email, order number, transaction number, or transaction type"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           fullWidth
@@ -212,6 +212,7 @@ export default function TransactionRecords() {
                 <TableCell>Email</TableCell>
                 <TableCell>Order #</TableCell>
                 <TableCell>Amount</TableCell>
+                <TableCell>Transaction Type</TableCell>
                 <TableCell>Transaction #</TableCell>
                 <TableCell>Time</TableCell>
                 {tab === 1 && <TableCell>Confirmed</TableCell>}
@@ -233,6 +234,35 @@ export default function TransactionRecords() {
                   <TableCell>{rec.email}</TableCell>
                   <TableCell>{rec.orderNumber}</TableCell>
                   <TableCell>${rec.amount}</TableCell>
+                  <TableCell>
+                    <Box
+                      sx={{
+                        display: 'inline-block',
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: 1,
+                        backgroundColor:
+                          rec.transactionType === 'zelle'
+                            ? 'primary.main'
+                            : rec.transactionType === 'bank_deposit'
+                            ? 'secondary.main'
+                            : rec.transactionType === 'wire_transfer'
+                            ? 'success.main'
+                            : 'grey.400',
+                        color: 'white',
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {rec.transactionType === 'bank_deposit'
+                        ? 'ACH'
+                        : rec.transactionType
+                        ? rec.transactionType
+                            .replace(/_/g, ' ') // Replace underscores with spaces
+                            .replace(/\b\w/g, (l) => l.toUpperCase()) // Capitalize first letter of each word
+                        : 'N/A'}
+                    </Box>
+                  </TableCell>
                   <TableCell>{rec.transactionNumber}</TableCell>
                   <TableCell>{rec.createdAt ? new Date(rec.createdAt).toLocaleString() : ''}</TableCell>
                   {tab === 1 && <TableCell>{rec.confirmed ? 'Yes' : 'No'}</TableCell>}
@@ -347,7 +377,7 @@ export default function TransactionRecords() {
               ))}
               {filteredRecords.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={tab === 1 ? 8 : 7} align="center">
+                  <TableCell colSpan={tab === 1 ? 9 : 8} align="center">
                     <Typography color="text.secondary">No transactions found.</Typography>
                   </TableCell>
                 </TableRow>
