@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 import Login from './Login';
 import Register from './Register';
@@ -9,6 +9,7 @@ import PublicRoute from './PublicRoute';
 import UserManagement from './UserManagement';
 import OrderDetail from './OrderDetail';
 import ResetPassword from './ResetPassword';
+import NotificationSettings from './NotificationSettings';
 import { apiFetch } from './api'; // Make sure this import exists
 
 function App() {
@@ -105,12 +106,24 @@ function App() {
           )}
           {user && user.role === 'admin' && (
             <>
+              <Button color="primary" component={Link} to="/records">
+                Records
+              </Button>
+              <Button color="primary" component={Link} to="/admin/notification-settings">
+                Notification Settings
+              </Button>
               <Button color="primary" component={Link} to="/users">
                 Users
               </Button>
+              <Button color="primary" component={Link} to="/reset-password">
+                Reset Password
+              </Button>
+              <Button color="primary" onClick={handleLogout}>
+                Logout
+              </Button>
             </>
           )}
-          {user && (
+          {user && user.role !== 'admin' && (
             <>
               <Button color="primary" component={Link} to="/records">
                 Records
@@ -161,6 +174,14 @@ function App() {
             />
             <Route path="/order/:orderNumber" element={<OrderDetail />} />
             <Route path="/reset-password" element={user ? <ResetPassword /> : <Navigate to="/login" replace />} />
+            <Route
+              path="/admin/notification-settings"
+              element={
+                <AdminRoute user={user}>
+                  <NotificationSettings />
+                </AdminRoute>
+              }
+            />
           </Routes>
         </Box>
         <Box

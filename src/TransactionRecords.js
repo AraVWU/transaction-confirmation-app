@@ -227,7 +227,8 @@ export default function TransactionRecords() {
                 <TableRow
                   key={rec._id}
                   sx={{
-                    bgcolor: !rec.confirmed && tab === 0 ? '#fffde7' : undefined,
+                    bgcolor:
+                      !rec.confirmed && tab === 0 ? '#fffde7' : rec.confirmed && tab === 1 ? '#c8e6c8 ' : undefined,
                     '&:hover': { bgcolor: '#f5f5f5' },
                   }}
                 >

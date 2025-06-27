@@ -44,4 +44,19 @@ export async function fetchUsers() {
   return res.json();
 }
 
+// Notification Settings API helpers
+
+export async function getNotificationSettings() {
+  const res = await apiFetch('/notification-settings');
+  return res.json();
+}
+
+export async function updateNotificationSettings(settings) {
+  const res = await apiFetch('/notification-settings', {
+    method: 'PUT',
+    body: JSON.stringify(settings),
+  });
+  return res.json();
+}
+
 // You can add more API helpers as needed, using apiFetch for consistency.
