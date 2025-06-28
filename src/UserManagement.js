@@ -19,6 +19,10 @@ import {
   DialogContentText,
   Tabs,
   Tab,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import { apiFetch } from './api';
 import Register from './Register';
@@ -31,6 +35,11 @@ export default function UserManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
   const [tab, setTab] = useState(0);
+
+  // Role change state
+  const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+  const [userToChangeRole, setUserToChangeRole] = useState(null);
+  const [newRole, setNewRole] = useState('');
 
   const fetchUsers = async () => {
     const res = await apiFetch('/users');
@@ -58,6 +67,23 @@ export default function UserManagement() {
     }
   };
 
+  const handleRoleUpdate = async () => {
+    const res = await apiFetch(`/users/${userToChangeRole._id}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role: newRole }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setUsers((prev) => prev.map((u) => (u._id === userToChangeRole._id ? { ...u, role: newRole } : u)));
+      setMessage(`User role updated to ${newRole}!`);
+      setRoleDialogOpen(false);
+      setUserToChangeRole(null);
+      setNewRole('');
+    } else {
+      setMessage(data.message || 'Failed to update role.');
+    }
+  };
+
   const handleDeleteUser = async () => {
     const res = await apiFetch(`/users/${userToDelete._id}`, {
       method: 'DELETE',
@@ -79,8 +105,14 @@ export default function UserManagement() {
     setUserToDelete(null);
   };
 
+  const openRoleDialog = (user) => {
+    setUserToChangeRole(user);
+    setNewRole(user.role);
+    setRoleDialogOpen(true);
+  };
+
   return (
-    <Box sx={{ maxWidth: 700, mx: 'auto', mt: 4 }}>
+    <Box sx={{ maxWidth: 800, mx: 'auto', mt: 4 }}>
       <Paper sx={{ p: 3 }}>
         <Typography variant="h5" gutterBottom>
           User Management
@@ -91,8 +123,13 @@ export default function UserManagement() {
         </Tabs>
         {message && (
           <Alert
-            severity={message === 'Password updated!' || message === 'User deleted.' ? 'success' : 'error'}
+            severity={
+              message.includes('updated!') || message.includes('updated to') || message.includes('deleted.')
+                ? 'success'
+                : 'error'
+            }
             sx={{ mb: 2 }}
+            onClose={() => setMessage('')}
           >
             {message}
           </Alert>
@@ -104,29 +141,56 @@ export default function UserManagement() {
                 <TableRow>
                   <TableCell>Email</TableCell>
                   <TableCell>Role</TableCell>
-                  <TableCell>Action</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {users.map((user) => (
                   <TableRow key={user._id}>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.role}</TableCell>
                     <TableCell>
-                      <Button variant="outlined" size="small" onClick={() => setSelectedUser(user._id)} sx={{ mr: 1 }}>
-                        Update Password
-                      </Button>
-                      <Button
-                        variant="contained"
-                        color="error"
-                        size="small"
-                        onClick={() => {
-                          setUserToDelete(user);
-                          setDeleteDialogOpen(true);
+                      <Box
+                        sx={{
+                          display: 'inline-block',
+                          px: 1,
+                          py: 0.5,
+                          borderRadius: 1,
+                          backgroundColor:
+                            user.role === 'admin'
+                              ? 'error.main'
+                              : user.role === 'accounting'
+                              ? 'success.main'
+                              : user.role === 'processTeam'
+                              ? 'warning.main'
+                              : 'primary.main',
+                          color: 'white',
+                          fontSize: '0.8rem',
+                          fontWeight: 500,
                         }}
                       >
-                        Delete
-                      </Button>
+                        {user.role}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        <Button variant="outlined" size="small" onClick={() => setSelectedUser(user._id)}>
+                          Password
+                        </Button>
+                        <Button variant="outlined" size="small" color="primary" onClick={() => openRoleDialog(user)}>
+                          Change Role
+                        </Button>
+                        <Button
+                          variant="contained"
+                          color="error"
+                          size="small"
+                          onClick={() => {
+                            setUserToDelete(user);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -135,6 +199,8 @@ export default function UserManagement() {
           </TableContainer>
         )}
         {tab === 1 && <Register onRegister={fetchUsers} />}
+
+        {/* Password Update Dialog */}
         <Dialog open={!!selectedUser} onClose={() => setSelectedUser(null)}>
           <DialogTitle>Update Password</DialogTitle>
           <form onSubmit={handlePasswordUpdate}>
@@ -158,6 +224,36 @@ export default function UserManagement() {
             </DialogActions>
           </form>
         </Dialog>
+
+        {/* Role Change Dialog */}
+        <Dialog open={roleDialogOpen} onClose={() => setRoleDialogOpen(false)}>
+          <DialogTitle>Change User Role</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ mb: 2 }}>
+              Change role for user: <strong>{userToChangeRole?.email}</strong>
+            </DialogContentText>
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>Role</InputLabel>
+              <Select value={newRole} label="Role" onChange={(e) => setNewRole(e.target.value)}>
+                <MenuItem value="admin">Admin</MenuItem>
+                <MenuItem value="accounting">Accounting</MenuItem>
+                <MenuItem value="customerService">Customer Service</MenuItem>
+                <MenuItem value="processTeam">Process Team</MenuItem>
+              </Select>
+            </FormControl>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setRoleDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleRoleUpdate}
+              variant="contained"
+              disabled={!newRole || newRole === userToChangeRole?.role}
+            >
+              Update Role
+            </Button>
+          </DialogActions>
+        </Dialog>
+
         {/* Delete Confirmation Dialog */}
         <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
           <DialogTitle>Delete User</DialogTitle>

@@ -67,6 +67,7 @@ export default function Register({ onRegister }) {
             <MenuItem value="accounting">Accounting</MenuItem>
             <MenuItem value="admin">Admin</MenuItem>
             <MenuItem value="customerService">Customer Service</MenuItem>
+            <MenuItem value="processTeam">Process Team</MenuItem>
           </Select>
         </FormControl>
         <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 2 }}>

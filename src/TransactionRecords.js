@@ -22,6 +22,8 @@ import {
   Stack,
   Divider,
   Chip,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import { Link } from 'react-router';
 import { apiFetch } from './api';
@@ -31,7 +33,12 @@ export default function TransactionRecords() {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState('');
   const [search, setSearch] = useState('');
-  const [tab, setTab] = useState(0);
+  const getDefaultTab = (role) => {
+    if (role === 'accounting') return 'unconfirmed'; // Unconfirmed Transactions
+    if (role === 'processTeam') return 'unprocessed'; // Unprocessed Records
+    return 'all'; // All Transactions (for admin, customerService, etc.)
+  };
+  const [tab, setTab] = useState('all'); // Use string instead of number
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
 
@@ -46,6 +53,30 @@ export default function TransactionRecords() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
 
+  // Add process confirmation dialog state
+  const [processDialogOpen, setProcessDialogOpen] = useState(false);
+  const [processId, setProcessId] = useState(null);
+
+  // Add notification state
+  const [notification, setNotification] = useState({
+    open: false,
+    message: '',
+    severity: 'success', // 'success', 'error', 'warning', 'info'
+  });
+
+  // Helper function to show notifications
+  const showNotification = (message, severity = 'success') => {
+    setNotification({
+      open: true,
+      message,
+      severity,
+    });
+  };
+
+  const handleNotificationClose = () => {
+    setNotification({ ...notification, open: false });
+  };
+
   useEffect(() => {
     const fetchRecords = async () => {
       const res = await apiFetch('/transactions');
@@ -59,6 +90,15 @@ export default function TransactionRecords() {
   useEffect(() => {
     const role = localStorage.getItem('role');
     setUserRole(role);
+
+    // Set default tab based on role
+    if (role === 'accounting') {
+      setTab('unconfirmed'); // Unconfirmed Transactions
+    } else if (role === 'processTeam') {
+      setTab('unprocessed'); // Unprocessed Records
+    } else {
+      setTab('all'); // All Transactions (for admin, customerService, etc.)
+    }
   }, []);
 
   const handleConfirmClick = (id) => {
@@ -162,18 +202,54 @@ export default function TransactionRecords() {
     }
   };
 
+  // Process confirmation handlers
+  const handleProcessClick = (id) => {
+    setProcessId(id);
+    setProcessDialogOpen(true);
+  };
+
+  const handleProcessConfirm = async () => {
+    try {
+      const response = await apiFetch(`/transactions/${processId}/mark-processed`, {
+        method: 'PATCH',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to mark as processed');
+      }
+
+      setRecords((prev) => prev.map((r) => (r._id === processId ? { ...r, processed: true } : r)));
+      showNotification('Transaction marked as processed successfully', 'success');
+    } catch (error) {
+      console.error('Error marking as processed:', error);
+      showNotification(`Error: ${error.message}`, 'error');
+    }
+
+    setProcessDialogOpen(false);
+    setProcessId(null);
+  };
+
+  const handleProcessDialogClose = () => {
+    setProcessDialogOpen(false);
+    setProcessId(null);
+  };
+
   const filteredRecords = records
     .filter((rec) => {
-      if (tab === 0) return !rec.confirmed;
-      if (tab === 1) return true;
-      if (tab === 2) return rec.refundRequested === true;
+      if (tab === 'unconfirmed') return !rec.confirmed;
+      if (tab === 'all') return true;
+      if (tab === 'refund') return rec.refundRequested === true;
+      if (tab === 'unprocessed') return rec.confirmed && !rec.processed;
+      // Removed: if (tab === 'processed') return rec.processed === true;
       return true;
     })
     .filter((rec) =>
       [rec.email, rec.orderNumber, rec.transactionNumber, rec.transactionType].some(
         (field) => field && field.toLowerCase().includes(search.toLowerCase())
       )
-    );
+    )
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); // Sort by newest first
 
   if (loading)
     return (
@@ -186,12 +262,25 @@ export default function TransactionRecords() {
     <Box sx={{ maxWidth: 1200, mx: 'auto', mt: 5, mb: 5 }}>
       <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
         <Typography variant="h4" fontWeight={600} gutterBottom>
-          {tab === 0 ? 'Unconfirmed Transactions' : tab === 1 ? 'All Transactions' : 'Refund Request Transactions'}
+          {tab === 'unconfirmed'
+            ? 'Unconfirmed Transactions'
+            : tab === 'all'
+            ? 'All Transactions'
+            : tab === 'refund'
+            ? 'Refund Request Transactions'
+            : tab === 'unprocessed'
+            ? 'Unprocessed Records'
+            : 'All Transactions'}{' '}
+          {/* Default fallback instead of 'Processed Records' */}
         </Typography>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
-          <Tab label="Unconfirmed Transactions" />
-          <Tab label="All Transactions" />
-          <Tab label="Refund Request Transactions" />
+        <Tabs
+          value={getTabsForRole(userRole).findIndex((t) => t.key === tab)}
+          onChange={(_, index) => setTab(getTabsForRole(userRole)[index].key)}
+          sx={{ mb: 3 }}
+        >
+          {getTabsForRole(userRole).map((tabConfig) => (
+            <Tab key={tabConfig.key} label={tabConfig.label} />
+          ))}
         </Tabs>
         <TextField
           label="Search by email, order number, transaction number, or transaction type"
@@ -200,7 +289,7 @@ export default function TransactionRecords() {
           fullWidth
           sx={{ mb: 3 }}
         />
-        {tab === 2 && (
+        {tab === 'refund' && (
           <Button variant="contained" color="primary" sx={{ mb: 2 }} onClick={handleExportRefunds}>
             Export Refund Requests
           </Button>
@@ -215,10 +304,11 @@ export default function TransactionRecords() {
                 <TableCell>Transaction Type</TableCell>
                 <TableCell>Transaction #</TableCell>
                 <TableCell>Time</TableCell>
-                {tab === 1 && <TableCell>Confirmed</TableCell>}
-                {tab === 1 && <TableCell>Refunded</TableCell>}
-                {tab === 2 && <TableCell>Comments</TableCell>}
-                {tab === 2 && <TableCell>Refund Amount</TableCell>}
+                {tab === 'all' && <TableCell>Confirmed</TableCell>}
+                {tab === 'all' && <TableCell>Processed</TableCell>}
+                {tab === 'all' && <TableCell>Refunded</TableCell>}
+                {tab === 'refund' && <TableCell>Comments</TableCell>}
+                {tab === 'refund' && <TableCell>Refund Amount</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -228,7 +318,11 @@ export default function TransactionRecords() {
                   key={rec._id}
                   sx={{
                     bgcolor:
-                      !rec.confirmed && tab === 0 ? '#fffde7' : rec.confirmed && tab === 1 ? '#c8e6c8 ' : undefined,
+                      !rec.confirmed && tab === 'unconfirmed'
+                        ? '#fffde7'
+                        : rec.confirmed && tab === 'all'
+                        ? '#c8e6c8 '
+                        : undefined,
                     '&:hover': { bgcolor: '#f5f5f5' },
                   }}
                 >
@@ -266,9 +360,10 @@ export default function TransactionRecords() {
                   </TableCell>
                   <TableCell>{rec.transactionNumber}</TableCell>
                   <TableCell>{rec.createdAt ? new Date(rec.createdAt).toLocaleString() : ''}</TableCell>
-                  {tab === 1 && <TableCell>{rec.confirmed ? 'Yes' : 'No'}</TableCell>}
-                  {tab === 1 && <TableCell>{rec.refunded ? 'Yes' : 'No'}</TableCell>}
-                  {tab === 2 && (
+                  {tab === 'all' && <TableCell>{rec.confirmed ? 'Yes' : 'No'}</TableCell>}
+                  {tab === 'all' && <TableCell>{rec.processed ? 'Yes' : 'No'}</TableCell>}
+                  {tab === 'all' && <TableCell>{rec.refunded ? 'Yes' : 'No'}</TableCell>}
+                  {tab === 'refund' && (
                     <TableCell>
                       {rec.comments && rec.comments.length > 0 ? (
                         <ul style={{ paddingLeft: 16, margin: 0 }}>
@@ -287,7 +382,7 @@ export default function TransactionRecords() {
                       )}
                     </TableCell>
                   )}
-                  {tab === 2 && (
+                  {tab === 'refund' && (
                     <TableCell>
                       {rec.refundAmount !== undefined && rec.refundAmount !== null && rec.refundAmount !== '' ? (
                         <span>${rec.refundAmount}</span>
@@ -298,7 +393,7 @@ export default function TransactionRecords() {
                   )}
                   <TableCell align="center">
                     <Stack direction="row" spacing={1} justifyContent="center">
-                      {userRole === 'accounting' && !rec.confirmed && tab === 0 && (
+                      {userRole === 'accounting' && !rec.confirmed && tab === 'unconfirmed' && (
                         <Button
                           variant="contained"
                           color="success"
@@ -308,10 +403,20 @@ export default function TransactionRecords() {
                           Confirm
                         </Button>
                       )}
+                      {userRole === 'processTeam' && rec.confirmed && !rec.processed && (
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          size="small"
+                          onClick={() => handleProcessClick(rec._id)}
+                        >
+                          Mark Processed
+                        </Button>
+                      )}
                       <Button variant="outlined" size="small" component={Link} to={`/order/${rec.orderNumber}`}>
                         View Order
                       </Button>
-                      {tab === 1 && !rec.refunded && !rec.refundRequested && (
+                      {tab === 'all' && !rec.refunded && !rec.refundRequested && (
                         <Button
                           variant="contained"
                           color="warning"
@@ -321,7 +426,7 @@ export default function TransactionRecords() {
                           Refund Request
                         </Button>
                       )}
-                      {userRole === 'admin' && tab === 2 && (
+                      {userRole === 'admin' && tab === 'refund' && (
                         <>
                           {!rec.refunded && rec.refundRequested && (
                             <>
@@ -362,7 +467,7 @@ export default function TransactionRecords() {
                           )}
                         </>
                       )}
-                      {userRole === 'admin' && tab === 1 && (
+                      {userRole === 'admin' && tab === 'all' && (
                         <Button
                           variant="outlined"
                           color="error"
@@ -378,7 +483,7 @@ export default function TransactionRecords() {
               ))}
               {filteredRecords.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={tab === 1 ? 9 : 8} align="center">
+                  <TableCell colSpan={tab === 'all' ? 10 : 8} align="center">
                     <Typography color="text.secondary">No transactions found.</Typography>
                   </TableCell>
                 </TableRow>
@@ -486,6 +591,75 @@ export default function TransactionRecords() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Process Confirmation Dialog */}
+      <Dialog open={processDialogOpen} onClose={handleProcessDialogClose} PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle>Mark Transaction as Processed</DialogTitle>
+        <Divider />
+        <DialogContent sx={{ bgcolor: '#f9f9f9' }}>
+          <DialogContentText sx={{ mb: 2 }}>
+            Are you sure you want to mark this transaction as processed?
+          </DialogContentText>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            <strong>Order Number:</strong> {processId && records.find((r) => r._id === processId)?.orderNumber}
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            <strong>Amount:</strong> ${processId && records.find((r) => r._id === processId)?.amount}
+          </Typography>
+          <Typography variant="body2" color="info.main">
+            This indicates that the order has been fulfilled and processed.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleProcessDialogClose}>Cancel</Button>
+          <Button onClick={handleProcessConfirm} color="primary" variant="contained">
+            Mark as Processed
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={notification.open}
+        autoHideDuration={4000}
+        onClose={handleNotificationClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleNotificationClose}
+          severity={notification.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {notification.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
+}
+
+function getTabsForRole(role) {
+  const baseTabs = [
+    { key: 'all', label: 'All Transactions' },
+    { key: 'refund', label: 'Refund Request Transactions' },
+  ];
+
+  if (role === 'admin') {
+    // Admin sees ALL tabs (removed 'processed' tab)
+    return [
+      { key: 'unconfirmed', label: 'Unconfirmed Transactions' },
+      { key: 'unprocessed', label: 'Unprocessed Records' },
+      ...baseTabs,
+    ];
+  }
+
+  if (role === 'accounting') {
+    return [{ key: 'unconfirmed', label: 'Unconfirmed Transactions' }, ...baseTabs];
+  }
+
+  if (role === 'processTeam') {
+    return [{ key: 'unprocessed', label: 'Unprocessed Records' }, ...baseTabs];
+  }
+
+  return baseTabs; // For customerService and others
 }
