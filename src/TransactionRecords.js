@@ -53,6 +53,10 @@ export default function TransactionRecords() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
 
+  // Add reject dialog state for accounting
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectId, setRejectId] = useState(null);
+
   // Add process confirmation dialog state
   const [processDialogOpen, setProcessDialogOpen] = useState(false);
   const [processId, setProcessId] = useState(null);
@@ -235,6 +239,39 @@ export default function TransactionRecords() {
     setProcessId(null);
   };
 
+  // Reject handlers for accounting
+  const handleRejectClick = (id) => {
+    setRejectId(id);
+    setRejectDialogOpen(true);
+  };
+
+  const handleReject = async () => {
+    try {
+      const response = await apiFetch(`/transactions/${rejectId}/reject`, {
+        method: 'PATCH', // Changed from DELETE to PATCH
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to reject transaction');
+      }
+
+      setRecords((prev) => prev.filter((r) => r._id !== rejectId));
+      showNotification('Transaction rejected and customer notified via email', 'success');
+    } catch (error) {
+      console.error('Error rejecting transaction:', error);
+      showNotification(`Error: ${error.message}`, 'error');
+    }
+
+    setRejectDialogOpen(false);
+    setRejectId(null);
+  };
+
+  const handleRejectDialogClose = () => {
+    setRejectDialogOpen(false);
+    setRejectId(null);
+  };
+
   const filteredRecords = records
     .filter((rec) => {
       if (tab === 'unconfirmed') return !rec.confirmed;
@@ -394,14 +431,24 @@ export default function TransactionRecords() {
                   <TableCell align="center">
                     <Stack direction="row" spacing={1} justifyContent="center">
                       {userRole === 'accounting' && !rec.confirmed && tab === 'unconfirmed' && (
-                        <Button
-                          variant="contained"
-                          color="success"
-                          size="small"
-                          onClick={() => handleConfirmClick(rec._id)}
-                        >
-                          Confirm
-                        </Button>
+                        <>
+                          <Button
+                            variant="contained"
+                            color="success"
+                            size="small"
+                            onClick={() => handleConfirmClick(rec._id)}
+                          >
+                            Confirm
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            onClick={() => handleRejectClick(rec._id)}
+                          >
+                            Reject
+                          </Button>
+                        </>
                       )}
                       {userRole === 'processTeam' && rec.confirmed && !rec.processed && (
                         <Button
@@ -588,6 +635,40 @@ export default function TransactionRecords() {
           <Button onClick={handleDeleteDialogClose}>Cancel</Button>
           <Button onClick={handleDelete} color="error" variant="contained">
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reject Confirmation Dialog */}
+      <Dialog open={rejectDialogOpen} onClose={handleRejectDialogClose} PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle>Reject Transaction</DialogTitle>
+        <Divider />
+        <DialogContent sx={{ bgcolor: '#f9f9f9' }}>
+          <DialogContentText sx={{ mb: 2 }}>
+            Are you sure you want to reject this transaction? The customer will be notified via email to resubmit their
+            information.
+          </DialogContentText>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            <strong>Order Number:</strong> {rejectId && records.find((r) => r._id === rejectId)?.orderNumber}
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            <strong>Amount:</strong> ${rejectId && records.find((r) => r._id === rejectId)?.amount}
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            <strong>Customer Email:</strong> {rejectId && records.find((r) => r._id === rejectId)?.email}
+          </Typography>
+          <Typography variant="body2" color="warning.main" sx={{ mt: 2 }}>
+            ⚠️ This will permanently remove the transaction and send an email to the customer asking them to resubmit
+            with correct information.
+          </Typography>
+          <Typography variant="body2" color="info.main" sx={{ mt: 1 }}>
+            📧 An email will be automatically sent to the customer with instructions to fill out the form again.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleRejectDialogClose}>Cancel</Button>
+          <Button onClick={handleReject} color="error" variant="contained">
+            Reject & Notify Customer
           </Button>
         </DialogActions>
       </Dialog>
