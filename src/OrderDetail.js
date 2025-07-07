@@ -38,16 +38,17 @@ export default function OrderDetail() {
 
   if (!orderData || !orderData.order) return <Typography color="error">Order not found.</Typography>;
 
-  const { order, invoices } = orderData;
-  const magentoAdminUrl = `https://a.vapewholesaleusa.com/admin_SqwOPu4tsRle/sales/order/view/order_id/${order.entity_id}`;
+  const { order, invoices, adminUrl } = orderData;
 
   return (
     <Box component={Paper} sx={{ maxWidth: 700, mx: 'auto', mt: 4, p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h6">Magento Order: {order.increment_id}</Typography>
-        <Button variant="contained" color="primary" href={magentoAdminUrl} target="_blank" rel="noopener noreferrer">
-          View in Magento
-        </Button>
+        {adminUrl && (
+          <Button variant="contained" color="primary" href={adminUrl} target="_blank" rel="noopener noreferrer">
+            View in Magento
+          </Button>
+        )}
       </Box>
       <Divider sx={{ mb: 2 }} />
 
