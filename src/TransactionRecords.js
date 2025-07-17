@@ -105,6 +105,7 @@ export default function TransactionRecords() {
     }
   }, []);
 
+  // Remove order number error and enforcement for accounting UI
   const handleConfirmClick = (id) => {
     setSelectedId(id);
     setConfirmDialogOpen(true);
@@ -296,7 +297,7 @@ export default function TransactionRecords() {
     );
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto', mt: 5, mb: 5 }}>
+    <Box sx={{ maxWidth: 1800, mx: 'auto', mt: 5, mb: 5 }}>
       <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
         <Typography variant="h4" fontWeight={600} gutterBottom>
           {tab === 'unconfirmed'
@@ -364,7 +365,15 @@ export default function TransactionRecords() {
                   }}
                 >
                   <TableCell>{rec.email}</TableCell>
-                  <TableCell>{rec.orderNumber}</TableCell>
+                  <TableCell>
+                    {rec.orderNumber}
+                    {userRole === 'accounting' &&
+                      tab === 'unconfirmed' &&
+                      rec.orderNumber &&
+                      rec.orderNumber.length !== 9 && (
+                        <span style={{ color: 'red', fontWeight: 600, marginLeft: 8 }}>(⚠️ Not 9 digits)</span>
+                      )}
+                  </TableCell>
                   <TableCell>${rec.amount}</TableCell>
                   <TableCell>
                     <Box

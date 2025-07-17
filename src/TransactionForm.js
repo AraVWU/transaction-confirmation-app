@@ -29,6 +29,12 @@ export default function TransactionForm() {
     if (!transactionNumber) {
       errs.transactionNumber = 'Transaction number is required. Incorrect value will result in unprocessed order.';
     }
+
+    // Order number must be exactly 9 digits
+    if (!orderNumber || !/^[0-9]{9}$/.test(orderNumber)) {
+      errs.orderNumber = 'Order number must be exactly 9 digits (including leading zeros).';
+    }
+
     // Transaction Type validation
     if (!transactionType) {
       errs.transactionType = 'Transaction type is required.';
@@ -75,7 +81,7 @@ export default function TransactionForm() {
   };
 
   return (
-    <Box component={Paper} elevation={3} sx={{ maxWidth: 400, mx: 'auto', mt: 4, p: 3 }}>
+    <Box component={Paper} elevation={3} sx={{ maxWidth: 400, mx: 'auto', mt: 4, p: 4 }}>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         You are required to fill out this form because you chose the Deposit at Bank / Zelle payment option on our store
         page. Please complete this form after you have sent your payment. If you selected this payment option by
@@ -142,7 +148,11 @@ export default function TransactionForm() {
           margin="normal"
           required
           error={!!errors.orderNumber}
-          helperText={errors.orderNumber && 'Order number is required.'}
+          helperText={
+            errors.orderNumber
+              ? 'Order number must be exactly 9 digits, including leading zeros. Example: 000123456'
+              : 'Order number is required and must be 9 digits (including leading zeros).'
+          }
         />
         {/* Transaction Number warning */}
         <Typography variant="body2" color="warning.main" sx={{ mt: 2 }}>
