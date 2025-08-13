@@ -30,9 +30,10 @@ export default function TransactionForm() {
       errs.transactionNumber = 'Transaction number is required. Incorrect value will result in unprocessed order.';
     }
 
-    // Order number must be exactly 9 digits
-    if (!orderNumber || !/^[0-9]{9}$/.test(orderNumber)) {
-      errs.orderNumber = 'Order number must be exactly 9 digits (including leading zeros).';
+    // Order number validation: 9 digits with optional suffix like -1, -2, etc.
+    if (!orderNumber || !/^[0-9]{9}(-[0-9]+)*$/.test(orderNumber)) {
+      errs.orderNumber =
+        'Order number must be at least 9 digits (including leading zeros) with optional suffix like -1, -2. Examples: 000111111, 000111111-1';
     }
 
     // Transaction Type validation
@@ -150,8 +151,8 @@ export default function TransactionForm() {
           error={!!errors.orderNumber}
           helperText={
             errors.orderNumber
-              ? 'Order number must be exactly 9 digits, including leading zeros. Example: 000123456'
-              : 'Order number is required and must be 9 digits (including leading zeros).'
+              ? 'Order number must be 9 digits (including leading zeros) with optional suffix. Examples: 000123456, 000123456-1'
+              : 'Order number is required and must be 9 digits (including leading zeros). Suffixes like -1, -2 are allowed.'
           }
         />
         {/* Transaction Number warning */}

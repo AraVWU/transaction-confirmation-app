@@ -61,6 +61,11 @@ export default function TransactionRecords() {
   const [processDialogOpen, setProcessDialogOpen] = useState(false);
   const [processId, setProcessId] = useState(null);
 
+  // Add confirmation error dialog state
+  const [confirmErrorDialogOpen, setConfirmErrorDialogOpen] = useState(false);
+  const [confirmErrorMessage, setConfirmErrorMessage] = useState('');
+  const [confirmErrorDetails, setConfirmErrorDetails] = useState(null);
+
   // Add notification state
   const [notification, setNotification] = useState({
     open: false,
@@ -112,12 +117,41 @@ export default function TransactionRecords() {
   };
 
   const handleConfirm = async () => {
-    await apiFetch(`/transactions/${selectedId}/confirm`, {
-      method: 'PATCH',
-    });
-    setRecords((prev) => prev.map((rec) => (rec._id === selectedId ? { ...rec, confirmed: true } : rec)));
-    setConfirmDialogOpen(false);
-    setSelectedId(null);
+    try {
+      const response = await apiFetch(`/transactions/${selectedId}/confirm`, {
+        method: 'PATCH',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        setConfirmErrorMessage(errorData.message || 'Failed to confirm transaction');
+        setConfirmErrorDetails(errorData);
+        setConfirmErrorDialogOpen(true);
+        setConfirmDialogOpen(false);
+        setSelectedId(null);
+        return;
+      }
+
+      const result = await response.json();
+
+      // Show warning if there was an issue with Magento invoice
+      if (result.warning) {
+        showNotification(`Transaction confirmed with warning: ${result.warning}`, 'warning');
+      } else {
+        showNotification('Transaction confirmed successfully', 'success');
+      }
+
+      setRecords((prev) => prev.map((rec) => (rec._id === selectedId ? { ...rec, confirmed: true } : rec)));
+      setConfirmDialogOpen(false);
+      setSelectedId(null);
+    } catch (error) {
+      console.error('Error confirming transaction:', error);
+      setConfirmErrorMessage('Network error occurred while confirming transaction');
+      setConfirmErrorDetails({ error: error.message });
+      setConfirmErrorDialogOpen(true);
+      setConfirmDialogOpen(false);
+      setSelectedId(null);
+    }
   };
 
   const handleDialogClose = () => {
@@ -297,8 +331,26 @@ export default function TransactionRecords() {
     );
 
   return (
-    <Box sx={{ maxWidth: 1800, mx: 'auto', mt: 5, mb: 5 }}>
-      <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
+    <Box
+      sx={{
+        maxWidth: 1800,
+        mx: 'auto',
+        mt: 5,
+        mb: 5,
+        width: '100%',
+        minWidth: 'fit-content',
+        transition: 'width 0.3s ease-in-out',
+      }}
+    >
+      <Paper
+        elevation={3}
+        sx={{
+          p: 4,
+          borderRadius: 3,
+          width: '100%',
+          overflow: 'auto',
+        }}
+      >
         <Typography variant="h4" fontWeight={600} gutterBottom>
           {tab === 'unconfirmed'
             ? 'Unconfirmed Transactions'
@@ -332,8 +384,24 @@ export default function TransactionRecords() {
             Export Refund Requests
           </Button>
         )}
-        <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: 0 }}>
-          <Table size="small" sx={{ minWidth: 900 }}>
+        <TableContainer
+          component={Paper}
+          sx={{
+            borderRadius: 2,
+            boxShadow: 0,
+            width: '100%',
+            overflow: 'auto',
+            transition: 'width 0.3s ease-in-out',
+          }}
+        >
+          <Table
+            size="small"
+            sx={{
+              minWidth: 900,
+              width: '100%',
+              tableLayout: 'auto',
+            }}
+          >
             <TableHead sx={{ position: 'sticky', top: 0, bgcolor: '#f7f7fa', zIndex: 1 }}>
               <TableRow>
                 <TableCell>Email</TableCell>
@@ -365,15 +433,7 @@ export default function TransactionRecords() {
                   }}
                 >
                   <TableCell>{rec.email}</TableCell>
-                  <TableCell>
-                    {rec.orderNumber}
-                    {userRole === 'accounting' &&
-                      tab === 'unconfirmed' &&
-                      rec.orderNumber &&
-                      rec.orderNumber.length !== 9 && (
-                        <span style={{ color: 'red', fontWeight: 600, marginLeft: 8 }}>(⚠️ Not 9 digits)</span>
-                      )}
-                  </TableCell>
+                  <TableCell>{rec.orderNumber}</TableCell>
                   <TableCell>${rec.amount}</TableCell>
                   <TableCell>
                     <Box
@@ -704,6 +764,62 @@ export default function TransactionRecords() {
           <Button onClick={handleProcessDialogClose}>Cancel</Button>
           <Button onClick={handleProcessConfirm} color="primary" variant="contained">
             Mark as Processed
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirmation Error Dialog */}
+      <Dialog
+        open={confirmErrorDialogOpen}
+        onClose={() => setConfirmErrorDialogOpen(false)}
+        PaperProps={{ sx: { borderRadius: 3, maxWidth: 500 } }}
+      >
+        <DialogTitle sx={{ color: 'error.main', fontWeight: 'bold' }}>⚠️ Transaction Confirmation Failed</DialogTitle>
+        <Divider />
+        <DialogContent sx={{ bgcolor: '#fdf2f2' }}>
+          <DialogContentText sx={{ mb: 2, color: 'error.dark' }}>
+            The transaction could not be confirmed due to the following issue:
+          </DialogContentText>
+          <Typography
+            variant="body1"
+            sx={{
+              mb: 2,
+              p: 2,
+              bgcolor: 'white',
+              border: '1px solid',
+              borderColor: 'error.light',
+              borderRadius: 1,
+              fontWeight: 500,
+            }}
+          >
+            {confirmErrorMessage}
+          </Typography>
+
+          {confirmErrorDetails && (
+            <>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                <strong>Additional Details:</strong>
+              </Typography>
+              {confirmErrorDetails.orderTotal && confirmErrorDetails.transactionAmount && (
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  • Order Total: <strong>${confirmErrorDetails.orderTotal}</strong>
+                </Typography>
+              )}
+              {confirmErrorDetails.orderTotal && confirmErrorDetails.transactionAmount && (
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  • Transaction Amount: <strong>${confirmErrorDetails.transactionAmount}</strong>
+                </Typography>
+              )}
+            </>
+          )}
+
+          <Typography variant="body2" color="info.main" sx={{ mt: 2, fontStyle: 'italic' }}>
+            💡 Please review the transaction details and contact the customer if needed to resolve this issue.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmErrorDialogOpen(false)} color="primary" variant="contained">
+            Understood
           </Button>
         </DialogActions>
       </Dialog>
