@@ -65,6 +65,7 @@ export default function TransactionRecords() {
   const [confirmErrorDialogOpen, setConfirmErrorDialogOpen] = useState(false);
   const [confirmErrorMessage, setConfirmErrorMessage] = useState('');
   const [confirmErrorDetails, setConfirmErrorDetails] = useState(null);
+  const [confirmErrorTransactionId, setConfirmErrorTransactionId] = useState(null);
 
   // Add notification state
   const [notification, setNotification] = useState({
@@ -82,6 +83,36 @@ export default function TransactionRecords() {
     });
   };
 
+  // Add bypass confirmation handler
+  const handleBypassConfirm = async () => {
+    try {
+      console.log('Bypassing confirmation for transaction:', confirmErrorTransactionId);
+      const response = await apiFetch(`/transactions/${confirmErrorTransactionId}/bypass-confirm`, {
+        method: 'PATCH',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        showNotification(`Bypass failed: ${errorData.message}`, 'error');
+        return;
+      }
+
+      const result = await response.json();
+      showNotification('Transaction confirmed via bypass. Process team has been notified.', 'warning');
+
+      setRecords((prev) =>
+        prev.map((rec) => (rec._id === confirmErrorTransactionId ? { ...rec, confirmed: true } : rec))
+      );
+      setConfirmErrorDialogOpen(false);
+      setConfirmErrorTransactionId(null);
+      setConfirmErrorMessage('');
+      setConfirmErrorDetails(null);
+    } catch (error) {
+      console.error('Error during bypass confirmation:', error);
+      showNotification('Network error during bypass confirmation', 'error');
+    }
+  };
+
   const handleNotificationClose = () => {
     setNotification({ ...notification, open: false });
   };
@@ -95,6 +126,12 @@ export default function TransactionRecords() {
     };
     fetchRecords();
   }, [tab]);
+
+  // Debug: Track error dialog state changes
+  useEffect(() => {
+    console.log('confirmErrorDialogOpen changed to:', confirmErrorDialogOpen);
+    console.log('confirmErrorMessage:', confirmErrorMessage);
+  }, [confirmErrorDialogOpen, confirmErrorMessage]);
 
   useEffect(() => {
     const role = localStorage.getItem('role');
@@ -118,20 +155,33 @@ export default function TransactionRecords() {
 
   const handleConfirm = async () => {
     try {
+      console.log('Attempting to confirm transaction:', selectedId);
       const response = await apiFetch(`/transactions/${selectedId}/confirm`, {
         method: 'PATCH',
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseErr) {
+          console.error('Failed to parse error response:', parseErr);
+          errorData = { message: 'Failed to confirm transaction - server error' };
+        }
+        console.log('Error data from server:', errorData);
+
         setConfirmErrorMessage(errorData.message || 'Failed to confirm transaction');
         setConfirmErrorDetails(errorData);
+        setConfirmErrorTransactionId(selectedId); // Store the transaction ID for bypass
+        console.log('Setting confirmErrorDialogOpen to true');
         setConfirmErrorDialogOpen(true);
         setConfirmDialogOpen(false);
         setSelectedId(null);
         return;
       }
-
       const result = await response.json();
 
       // Show warning if there was an issue with Magento invoice
@@ -148,6 +198,8 @@ export default function TransactionRecords() {
       console.error('Error confirming transaction:', error);
       setConfirmErrorMessage('Network error occurred while confirming transaction');
       setConfirmErrorDetails({ error: error.message });
+      setConfirmErrorTransactionId(selectedId); // Store the transaction ID for bypass
+      console.log('Setting confirmErrorDialogOpen to true (catch block)');
       setConfirmErrorDialogOpen(true);
       setConfirmDialogOpen(false);
       setSelectedId(null);
@@ -771,8 +823,12 @@ export default function TransactionRecords() {
       {/* Confirmation Error Dialog */}
       <Dialog
         open={confirmErrorDialogOpen}
-        onClose={() => setConfirmErrorDialogOpen(false)}
-        PaperProps={{ sx: { borderRadius: 3, maxWidth: 500 } }}
+        onClose={() => {
+          console.log('Closing error dialog');
+          setConfirmErrorDialogOpen(false);
+        }}
+        PaperProps={{ sx: { borderRadius: 3, maxWidth: 500, zIndex: 9999 } }}
+        sx={{ zIndex: 9998 }}
       >
         <DialogTitle sx={{ color: 'error.main', fontWeight: 'bold' }}>⚠️ Transaction Confirmation Failed</DialogTitle>
         <Divider />
@@ -817,10 +873,35 @@ export default function TransactionRecords() {
             💡 Please review the transaction details and contact the customer if needed to resolve this issue.
           </Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmErrorDialogOpen(false)} color="primary" variant="contained">
-            Understood
-          </Button>
+        <DialogActions sx={{ flexDirection: 'column', gap: 1, p: 2 }}>
+          <Typography variant="body2" color="warning.main" sx={{ mb: 1, textAlign: 'center' }}>
+            ⚠️ <strong>Special Bypass Option:</strong> Use only when manual order processing is required
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, width: '100%' }}>
+            <Button
+              onClick={() => {
+                console.log('Closing error dialog');
+                setConfirmErrorDialogOpen(false);
+              }}
+              color="primary"
+              variant="outlined"
+              fullWidth
+            >
+              Understood
+            </Button>
+            <Button
+              onClick={handleBypassConfirm}
+              color="warning"
+              variant="contained"
+              fullWidth
+              sx={{
+                bgcolor: 'warning.main',
+                '&:hover': { bgcolor: 'warning.dark' },
+              }}
+            >
+              Bypass & Confirm
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
 
