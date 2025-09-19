@@ -21,7 +21,8 @@ export default function Register({ onRegister }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const res = await register(email, password, role);
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    const res = await register(normalizedEmail, password, role);
     if (res.success) {
       setMessage('Registration successful! You can now log in.');
       setEmail('');

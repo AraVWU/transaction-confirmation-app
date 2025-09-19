@@ -11,7 +11,8 @@ export default function Login({ onLogin }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const res = await login(email, password);
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    const res = await login(normalizedEmail, password);
     if (res.success) {
       // Optionally store role/email if needed for UI (not for auth)
       localStorage.setItem('role', res.role);

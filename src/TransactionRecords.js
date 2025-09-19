@@ -24,6 +24,7 @@ import {
   Chip,
   Snackbar,
   Alert,
+  TablePagination,
 } from '@mui/material';
 import { Link } from 'react-router';
 import { apiFetch } from './api';
@@ -41,6 +42,11 @@ export default function TransactionRecords() {
   const [tab, setTab] = useState('all'); // Use string instead of number
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+
+  // Pagination state (server-side aware)
+  const [page, setPage] = useState(0); // zero-based for MUI
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Refund dialog state
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
@@ -117,15 +123,36 @@ export default function TransactionRecords() {
     setNotification({ ...notification, open: false });
   };
 
+  // Fetch records with server-side pagination for 'all' tab without search; otherwise fetch all and paginate client-side
   useEffect(() => {
     const fetchRecords = async () => {
-      const res = await apiFetch('/transactions');
-      const data = await res.json();
-      setRecords(Array.isArray(data) ? data : []);
-      setLoading(false);
+      setLoading(true);
+      try {
+        const shouldServerPage = tab === 'all' && (!search || search.trim() === '');
+        let res;
+        if (shouldServerPage) {
+          const serverPage = page + 1; // API expects 1-based
+          res = await apiFetch(`/transactions?page=${serverPage}&limit=${rowsPerPage}`);
+        } else {
+          res = await apiFetch(`/transactions`);
+        }
+        const data = await res.json();
+        const headerCount = res.headers ? res.headers.get && res.headers.get('X-Total-Count') : null;
+        const parsedCount =
+          shouldServerPage && headerCount ? parseInt(headerCount, 10) : Array.isArray(data) ? data.length : 0;
+        setTotalCount(Number.isNaN(parsedCount) ? 0 : parsedCount);
+        setRecords(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error('Failed to fetch transactions:', e);
+        setRecords([]);
+        setTotalCount(0);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchRecords();
-  }, [tab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, page, rowsPerPage, search]);
 
   // Debug: Track error dialog state changes
   useEffect(() => {
@@ -146,6 +173,11 @@ export default function TransactionRecords() {
       setTab('all'); // All Transactions (for admin, customerService, etc.)
     }
   }, []);
+
+  // Reset pagination when tab or search changes
+  useEffect(() => {
+    setPage(0);
+  }, [tab, search]);
 
   // Remove order number error and enforcement for accounting UI
   const handleConfirmClick = (id) => {
@@ -242,9 +274,14 @@ export default function TransactionRecords() {
         message: refundMessage,
       }),
     });
-    const res = await apiFetch('/transactions');
+    // Refresh current page
+    const serverPage = page + 1;
+    const res = await apiFetch(`/transactions?page=${serverPage}&limit=${rowsPerPage}`);
     const data = await res.json();
-    setRecords(data);
+    const headerCount = res.headers ? res.headers.get && res.headers.get('X-Total-Count') : null;
+    const parsedCount = headerCount ? parseInt(headerCount, 10) : Array.isArray(data) ? data.length : 0;
+    setTotalCount(Number.isNaN(parsedCount) ? 0 : parsedCount);
+    setRecords(Array.isArray(data) ? data : []);
 
     setRefundDialogOpen(false);
     setRefundId(null);
@@ -375,6 +412,12 @@ export default function TransactionRecords() {
     )
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); // Sort by newest first
 
+  // Compute rows for display: server-side paging only when tab is 'all' and no search
+  const isServerPaged = tab === 'all' && (!search || search.trim() === '');
+  const pagedRecords = isServerPaged
+    ? filteredRecords // server already returned the page; we still apply in-page filters (none for 'all' tab/no search)
+    : filteredRecords.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
   if (loading)
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}>
@@ -471,7 +514,7 @@ export default function TransactionRecords() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredRecords.map((rec) => (
+              {pagedRecords.map((rec) => (
                 <TableRow
                   key={rec._id}
                   sx={{
@@ -649,7 +692,7 @@ export default function TransactionRecords() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredRecords.length === 0 && (
+              {pagedRecords.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={tab === 'all' ? 10 : 8} align="center">
                     <Typography color="text.secondary">No transactions found.</Typography>
@@ -659,6 +702,19 @@ export default function TransactionRecords() {
             </TableBody>
           </Table>
         </TableContainer>
+        {/* Pagination controls */}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <PaginationControls
+            count={isServerPaged ? totalCount : filteredRecords.length}
+            page={page}
+            rowsPerPage={rowsPerPage}
+            onPageChange={(event, newPage) => setPage(newPage)}
+            onRowsPerPageChange={(event) => {
+              setRowsPerPage(parseInt(event.target.value, 10));
+              setPage(0);
+            }}
+          />
+        </Box>
       </Paper>
 
       {/* Confirmation Dialog */}
@@ -922,6 +978,21 @@ export default function TransactionRecords() {
         </Alert>
       </Snackbar>
     </Box>
+  );
+}
+
+function PaginationControls({ count, page, rowsPerPage, onPageChange, onRowsPerPageChange }) {
+  return (
+    <TablePagination
+      component="div"
+      count={count}
+      page={page}
+      onPageChange={onPageChange}
+      rowsPerPage={rowsPerPage}
+      onRowsPerPageChange={onRowsPerPageChange}
+      rowsPerPageOptions={[10, 25, 50, 100]}
+      labelRowsPerPage="Rows per page"
+    />
   );
 }
 
