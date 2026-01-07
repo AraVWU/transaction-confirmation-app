@@ -47,10 +47,15 @@ function App() {
     return children;
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await apiFetch('/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('role');
-    localStorage.removeItem('email'); // Add this line
+    localStorage.removeItem('email');
     setUser(null);
   };
 

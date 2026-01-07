@@ -29,6 +29,13 @@ export async function register(email, password, role) {
   return res.json();
 }
 
+export async function logout() {
+  const res = await apiFetch('/auth/logout', {
+    method: 'POST',
+  });
+  return res.json();
+}
+
 // Transactions
 export async function submitTransaction(data) {
   const res = await apiFetch('/transactions', {
