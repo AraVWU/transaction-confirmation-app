@@ -38,7 +38,7 @@ export default function OrderDetail() {
 
   if (!orderData || !orderData.order) return <Typography color="error">Order not found.</Typography>;
 
-  const { order, invoices, adminUrl } = orderData;
+  const { order, invoices, adminUrl, salesRep } = orderData;
 
   return (
     <Box component={Paper} sx={{ maxWidth: 700, mx: 'auto', mt: 4, p: 3 }}>
@@ -77,6 +77,27 @@ export default function OrderDetail() {
           </TableRow>
         </TableBody>
       </Table>
+
+      {salesRep && (
+        <>
+          <Divider sx={{ my: 2 }} />
+          <Typography variant="subtitle1" gutterBottom>
+            Sales Rep
+          </Typography>
+          <Table size="small">
+            <TableBody>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell>{salesRep.rep_name}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Email</TableCell>
+                <TableCell>{salesRep.rep_email}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </>
+      )}
 
       <Divider sx={{ my: 2 }} />
 
