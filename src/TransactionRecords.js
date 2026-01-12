@@ -42,6 +42,7 @@ export default function TransactionRecords() {
   const [tab, setTab] = useState('all'); // Use string instead of number
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [confirmLoading, setConfirmLoading] = useState(false); // Prevent double-click on confirm
 
   // Pagination state (server-side aware)
   const [page, setPage] = useState(0); // zero-based for MUI
@@ -186,6 +187,8 @@ export default function TransactionRecords() {
   };
 
   const handleConfirm = async () => {
+    if (confirmLoading) return; // Prevent double-click
+    setConfirmLoading(true);
     try {
       console.log('Attempting to confirm transaction:', selectedId);
       const response = await apiFetch(`/transactions/${selectedId}/confirm`, {
@@ -235,6 +238,8 @@ export default function TransactionRecords() {
       setConfirmErrorDialogOpen(true);
       setConfirmDialogOpen(false);
       setSelectedId(null);
+    } finally {
+      setConfirmLoading(false);
     }
   };
 
@@ -734,9 +739,11 @@ export default function TransactionRecords() {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDialogClose}>Cancel</Button>
-          <Button onClick={handleConfirm} color="success" variant="contained">
-            Confirm
+          <Button onClick={handleDialogClose} disabled={confirmLoading}>
+            Cancel
+          </Button>
+          <Button onClick={handleConfirm} color="success" variant="contained" disabled={confirmLoading}>
+            {confirmLoading ? <CircularProgress size={20} color="inherit" /> : 'Confirm'}
           </Button>
         </DialogActions>
       </Dialog>
